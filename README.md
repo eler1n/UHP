@@ -154,7 +154,26 @@ const results = await uhp.store.search('myapp.com', 'notes', 'roadmap');
 - **Localhost only** — Agent only binds to `127.0.0.1`
 - **Namespace isolation** — Apps can only access their own namespace
 - **Origin-based permissions** — Each origin must explicitly request access
-- **No cloud sync** (v1) — Data stays on-device
+- **Encrypted sync** — When enabled, all data is encrypted on-device before syncing (AES-256-GCM)
+
+## Data Durability & Multi-Device Sync
+
+> *"If my computer dies, my data dies"* — not with UHP.
+
+UHP v1.1 specifies an **Encrypted Dumb Relay** — a sync layer where your data is encrypted on your machine before being stored on any cloud service. The relay (iCloud Drive, Google Drive, S3, a USB stick) sees only opaque blobs it cannot read.
+
+```
+MacBook → encrypt → iCloud Drive ← encrypt ← iPhone
+                    (sees nothing)
+```
+
+**Key properties:**
+- 🔐 **Zero-knowledge** — Relay cannot read, mine, or monetize your data
+- 🔄 **Multi-device** — All devices with your passphrase stay in sync
+- 💀 **Machine dies?** — New machine + passphrase = full restore
+- 🔑 **No accounts** — Just a passphrase, no email, no sign-up
+
+See [`PROTOCOL.md` §7](PROTOCOL.md#7-sync-layer--encrypted-dumb-relay) for the full specification.
 
 ## Roadmap
 
@@ -164,8 +183,9 @@ const results = await uhp.store.search('myapp.com', 'notes', 'roadmap');
 - [x] Full-text search
 - [x] Demo application
 - [x] Protocol specification
+- [x] Sync layer protocol spec (Dumb Relay)
+- [ ] Sync layer implementation (crypto + relay adapters)
 - [ ] Native permission dialogs (OS-level consent)
-- [ ] Encrypted sync layer (multi-device via "dumb relay")
 - [ ] Desktop tray app
 - [ ] SDKs for Python, Swift, Kotlin
 
