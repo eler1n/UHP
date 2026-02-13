@@ -53,18 +53,34 @@ MCP standardized how AI talks to tools. **UHP standardizes how apps talk to YOUR
 
 ## Quick Start
 
+### Option 1: One command (recommended)
+
 ```bash
-# Install dependencies
-npm install
-
-# Start the agent (localhost:21000)
-npm start
-
-# In another terminal — start the demo app (localhost:3210)
-npm run demo
+npx uhp start
 ```
 
-Open [http://localhost:3210](http://localhost:3210) to see the Twitter Bookmarks demo.
+That's it. The agent starts, the demo opens in your browser. Press `Ctrl+C` to stop.
+
+### Option 2: Clone and run
+
+```bash
+git clone https://github.com/eler1n/UHP.git
+cd UHP
+npm install
+npm start
+```
+
+Open [http://localhost:21000](http://localhost:21000) — the demo app loads automatically.
+
+### CLI Commands
+
+| Command | What it does |
+|---|---|
+| `uhp start` | Start the agent, open the demo |
+| `uhp stop` | Stop the running agent |
+| `uhp status` | Show health, stored items, namespaces |
+| `uhp demo` | Open the demo app in your browser |
+| `uhp help` | Show all options |
 
 ## API Overview
 

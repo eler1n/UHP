@@ -11,6 +11,8 @@
 const express = require('express');
 const cors = require('cors');
 
+const path = require('path');
+
 // --- Initialize Storage & Permissions ---
 const storage = require('./storage');
 const permissions = require('./permissions');
@@ -28,11 +30,22 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Request logging
+// Request logging (skip static files)
 app.use((req, res, next) => {
-    const origin = req.get('Origin') || req.get('User-Agent') || 'unknown';
-    console.log(`[UHP] ${req.method} ${req.path} ← ${origin}`);
+    if (!req.path.startsWith('/demo') && req.path !== '/' && req.path !== '/favicon.ico') {
+        const origin = req.get('Origin') || req.get('User-Agent') || 'unknown';
+        console.log(`[UHP] ${req.method} ${req.path} ← ${origin}`);
+    }
     next();
+});
+
+// --- Serve Demo App ---
+const demoPath = path.join(__dirname, '..', 'demo');
+app.use('/demo', express.static(demoPath));
+
+// Root → redirect to demo
+app.get('/', (req, res) => {
+    res.redirect('/demo');
 });
 
 // --- Mount Routes ---
