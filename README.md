@@ -191,18 +191,149 @@ MacBook → encrypt → iCloud Drive ← encrypt ← iPhone
 
 See [`PROTOCOL.md` §7](PROTOCOL.md#7-sync-layer--encrypted-dumb-relay) for the full specification.
 
+## How Apps Integrate
+
+UHP integration is lightweight — about **20 lines of code** for any web app. No SDK required, no dependencies, just `fetch()`.
+
+### Step 1: Detect the agent (zero impact if absent)
+
+```javascript
+let uhpAvailable = false;
+try {
+    const res = await fetch('http://localhost:21000/uhp/v1/handshake');
+    const agent = await res.json();
+    uhpAvailable = agent.protocol === 'uhp';
+} catch (_) {
+    // No agent → continue normally, nothing changes
+}
+```
+
+### Step 2: Request permission (once)
+
+```javascript
+await fetch('http://localhost:21000/uhp/v1/permissions/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ namespace: 'x.com', capabilities: ['storage.write', 'storage.query'] })
+});
+```
+
+### Step 3: Store data locally
+
+```javascript
+// When a user bookmarks a tweet, save it locally too
+if (uhpAvailable) {
+    await fetch('http://localhost:21000/uhp/v1/storage/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            namespace: 'x.com',
+            collection: 'bookmarks',
+            id: tweet.id,
+            data: { text: tweet.text, author: tweet.author }
+        })
+    });
+}
+```
+
+**That's the entire integration.** If the user doesn't have UHP, nothing changes. Zero disruption.
+
+### What a company gains by integrating
+
+| Before UHP | After UHP |
+|---|---|
+| Store millions of users' data on their servers | UHP users store their own data |
+| Pay for storage + compute for every query | Queries run on user's machine ($0) |
+| Liable for data breaches | No liability — data isn't on their servers |
+| GDPR compliance headaches | User owns their data |
+| Everything breaks if servers go down | Bookmarks work offline |
+
+## Adoption Paths
+
+UHP doesn't depend on companies adopting it. There are three paths to mainstream adoption:
+
+### Path 1: Native Integration (companies add UHP support)
+
+Apps add ~20 lines of code to detect the agent and offload data locally. This can be **additive** — save data locally AND on their servers — making it zero risk:
+
+```
+Phase 1: Mirror   → save locally as well as on server
+Phase 2: Local-first → query local first, fallback to server
+Phase 3: Offload  → stop storing on server for UHP users
+```
+
+### Path 2: Browser Extension (no company cooperation needed)
+
+A UHP browser extension acts as a **bridge** between websites that don't know about UHP and the local agent:
+
+```
+User visits x.com → extension detects bookmarks →
+saves them locally via UHP → no X cooperation needed
+```
+
+| What it captures | How |
+|---|---|
+| Bookmarks | Watches DOM for bookmark actions, captures content |
+| Reading history | Logs URLs visited (with user consent) |
+| Saved articles | Extracts content from Medium, Substack, etc. |
+| Shopping carts | Captures product data from Amazon, etc. |
+
+**No company needs to change anything.** The extension is a personal data collector that stores everything locally via UHP.
+
+### Path 3: Desktop Menubar App (for non-technical users)
+
+The agent ships as a native app — no terminal, no npm:
+
+```
+Download UHP.dmg → drag to Applications → it runs silently
+```
+
+The browser extension auto-connects. Zero configuration.
+
+### The Full Picture
+
+```
+                  ┌──────────────────────┐
+                  │  UHP Browser Extension│  ← captures data from ANY site
+                  └──────────┬───────────┘
+                             │
+    ┌────────────┐    ┌──────▼──────┐    ┌────────────┐
+    │ Apps that   │    │             │    │ Desktop    │
+    │ integrate   │───▶│  UHP Agent  │◀───│ Menubar App│
+    │ natively    │    │  (localhost) │    │ (auto-run) │
+    └────────────┘    └──────┬──────┘    └────────────┘
+                             │
+                      ┌──────▼──────┐
+                      │   SQLite    │
+                      │  Your data  │
+                      └─────────────┘
+```
+
 ## Roadmap
 
+### ✅ v1 — Foundation (done)
 - [x] Core agent with SQLite storage
 - [x] Universal JavaScript SDK
-- [x] Permission system
-- [x] Full-text search
-- [x] Demo application
+- [x] Permission system & full-text search
+- [x] Demo application (Twitter Bookmarks)
 - [x] Protocol specification
-- [x] Sync layer protocol spec (Dumb Relay)
+- [x] CLI (`uhp start/stop/status`)
+
+### ✅ v1.1 — Sync Protocol Spec (done)
+- [x] Encrypted Dumb Relay protocol design
+- [x] Cryptography spec (PBKDF2 + AES-256-GCM)
+- [x] Sync endpoints (setup/push/pull/restore)
+
+### 🔲 v2 — Sync Implementation
 - [ ] Sync layer implementation (crypto + relay adapters)
+- [ ] Filesystem relay (iCloud Drive, Google Drive, Dropbox)
+- [ ] S3 / WebDAV relay adapters
+- [ ] Conflict resolution (LWW + conflict log)
+
+### 🔲 v3 — Mainstream Adoption
+- [ ] Browser extension (capture data from any website)
+- [ ] Desktop menubar app (macOS, Windows, Linux)
 - [ ] Native permission dialogs (OS-level consent)
-- [ ] Desktop tray app
 - [ ] SDKs for Python, Swift, Kotlin
 
 ## License
