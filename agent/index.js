@@ -1,117 +1,93 @@
+/**
+ * UHP Agent — User-Hosted Protocol Local Agent
+ *
+ * A standardized REST API running on localhost that any application
+ * (web, desktop, mobile, CLI) can discover and offload tasks to.
+ *
+ * Think of it as "MCP for Apps" — but instead of connecting AI models
+ * to tools, it connects any application to user-owned local storage.
+ */
+
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const fs = require('fs');
-const path = require('path');
 
+// --- Initialize Storage & Permissions ---
+const storage = require('./storage');
+const permissions = require('./permissions');
+const db = storage.init();
+permissions.init(db);
+
+// --- Express App ---
 const app = express();
-const PORT = 21000;
-const STORAGE_FILE = path.join(__dirname, 'uhp-storage.json');
+const PORT = process.env.UHP_PORT || 21000;
 
 // Middleware
-app.use(cors()); // Allow any origin to connect (browsers connecting to localhost)
-app.use(bodyParser.json());
+app.use(cors({
+    origin: true,           // Reflect any origin (any app can connect)
+    credentials: true,
+}));
+app.use(express.json());
 
-// Initialize Storage
-if (!fs.existsSync(STORAGE_FILE)) {
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify({}));
-}
+// Request logging
+app.use((req, res, next) => {
+    const origin = req.get('Origin') || req.get('User-Agent') || 'unknown';
+    console.log(`[UHP] ${req.method} ${req.path} ← ${origin}`);
+    next();
+});
 
-// Helper: Load/Save DB
-function getDB() {
-    try {
-        return JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf8'));
-    } catch (e) {
-        return {};
-    }
-}
-function saveDB(data) {
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(data, null, 2));
-}
+// --- Mount Routes ---
+const handshakeRoutes = require('./routes/handshake');
+const storageRoutes = require('./routes/storage');
+const permissionRoutes = require('./routes/permissions');
 
-// --- UHP Protocol Implementation ---
+app.use('/uhp/v1', handshakeRoutes);
+app.use('/uhp/v1/storage', storageRoutes);
+app.use('/uhp/v1/permissions', permissionRoutes);
 
-// 1. Discovery / Handshake
-app.get('/uhp/v1/handshake', (req, res) => {
-    res.json({
-        protocol: 'uhp',
-        version: '1.0.0',
-        capabilities: ['storage.local', 'storage.query'],
-        agent: 'Clawdbot-UHP-Agent/1.0'
+// --- 404 Handler ---
+app.use((req, res) => {
+    res.status(404).json({
+        error: 'NOT_FOUND',
+        message: `Unknown endpoint: ${req.method} ${req.path}`,
+        hint: 'Try GET /uhp/v1/handshake to discover capabilities.',
     });
 });
 
-// 2. Storage: Write (Simulates saving a bookmark locally)
-app.post('/uhp/v1/storage/write', (req, res) => {
-    const { namespace, collection, id, data } = req.body;
-    
-    if (!namespace || !collection || !data) {
-        return res.status(400).json({ error: "Missing required fields: namespace, collection, data" });
-    }
-
-    const db = getDB();
-    
-    // Create namespace/collection structure if missing
-    if (!db[namespace]) db[namespace] = {};
-    if (!db[namespace][collection]) db[namespace][collection] = [];
-
-    const store = db[namespace][collection];
-    
-    // Check if item exists (update) or push new (create)
-    // If 'id' provided, use it for uniqueness
-    const existingIndex = id ? store.findIndex(item => item.id === id) : -1;
-    
-    const entry = {
-        id: id || Date.now().toString(),
-        timestamp: Date.now(),
-        data
-    };
-
-    if (existingIndex >= 0) {
-        store[existingIndex] = entry; // Update
-    } else {
-        store.push(entry); // Insert
-    }
-
-    saveDB(db);
-    
-    console.log(`[UHP] Wrote item to ${namespace}/${collection}`);
-    res.json({ success: true, id: entry.id });
+// --- Error Handler ---
+app.use((err, req, res, next) => {
+    console.error('[UHP] Unhandled error:', err);
+    res.status(500).json({
+        error: 'INTERNAL_ERROR',
+        message: err.message,
+    });
 });
 
-// 3. Storage: Read (Simulates fetching bookmarks locally)
-app.post('/uhp/v1/storage/query', (req, res) => {
-    const { namespace, collection, query } = req.body;
-
-    if (!namespace || !collection) {
-        return res.status(400).json({ error: "Missing required fields: namespace, collection" });
-    }
-
-    const db = getDB();
-    const store = (db[namespace] && db[namespace][collection]) || [];
-
-    // Simple filtering (exact match on data properties)
-    let results = store;
-    if (query) {
-        results = store.filter(item => {
-            // Check if item.data contains all keys/values from query
-            return Object.keys(query).every(key => item.data[key] === query[key]);
-        });
-    }
-
-    // Sort by timestamp desc by default
-    results.sort((a, b) => b.timestamp - a.timestamp);
-
-    console.log(`[UHP] Read ${results.length} items from ${namespace}/${collection}`);
-    res.json({ success: true, items: results });
-});
-
-// Start Server
+// --- Start ---
 app.listen(PORT, () => {
+    const stats = storage.getStats();
     console.log(`
-🚀 UHP Agent Running on http://localhost:${PORT}
-   - Handshake: GET /uhp/v1/handshake
-   - Write:     POST /uhp/v1/storage/write
-   - Read:      POST /uhp/v1/storage/query
+╔══════════════════════════════════════════════════╗
+║               UHP Agent v1.0.0                   ║
+║         User-Hosted Protocol — Local Agent       ║
+╠══════════════════════════════════════════════════╣
+║                                                  ║
+║  🌐  http://localhost:${PORT}                     ║
+║                                                  ║
+║  Endpoints:                                      ║
+║    GET  /uhp/v1/handshake          Discovery      ║
+║    GET  /uhp/v1/health             Health check   ║
+║    POST /uhp/v1/storage/write      Write item     ║
+║    POST /uhp/v1/storage/query      Query items    ║
+║    POST /uhp/v1/storage/delete     Delete item    ║
+║    POST /uhp/v1/storage/update     Update item    ║
+║    POST /uhp/v1/storage/search     Search items   ║
+║    POST /uhp/v1/permissions/request  Grant access ║
+║    GET  /uhp/v1/permissions/list   List grants    ║
+║    POST /uhp/v1/permissions/revoke Revoke grant   ║
+║                                                  ║
+║  Storage: ${String(stats.totalItems).padEnd(5)} items across ${String(stats.namespaces.length).padEnd(3)} namespaces   ║
+║  Any app (web, desktop, mobile, CLI) can connect ║
+║                                                  ║
+╚══════════════════════════════════════════════════╝
     `);
 });

@@ -1,153 +1,919 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UHP Demo: Twitter Bookmarks</title>
+    <title>UHP Demo — Twitter Bookmarks (Local-First)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #333; }
-        h1, h2 { margin-bottom: 0.5rem; }
-        .status { padding: 0.5rem; border-radius: 4px; font-weight: bold; margin-bottom: 1rem; display: inline-block; }
-        .status.connected { background: #d4edda; color: #155724; }
-        .status.disconnected { background: #f8d7da; color: #721c24; }
-        
-        .tweet-card { border: 1px solid #e1e8ed; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; }
-        .tweet-header { display: flex; align-items: center; margin-bottom: 0.5rem; }
-        .avatar { width: 48px; height: 48px; background: #ddd; border-radius: 50%; margin-right: 1rem; }
-        .username { font-weight: bold; }
-        .handle { color: #657786; margin-left: 0.5rem; }
-        .content { font-size: 1.1rem; margin-bottom: 1rem; }
-        .actions { display: flex; gap: 1rem; }
-        button { background: #1da1f2; color: white; border: none; padding: 0.5rem 1rem; border-radius: 9999px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #0d8bd9; }
-        button.secondary { background: white; color: #1da1f2; border: 1px solid #1da1f2; }
-        
-        #bookmarks-list { margin-top: 2rem; }
-        .bookmark-item { background: #f5f8fa; padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 4px solid #1da1f2; }
-        .bookmark-meta { font-size: 0.8rem; color: #657786; margin-top: 0.5rem; }
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #15202b;
+            --bg-secondary: #192734;
+            --bg-card: #1e2d3d;
+            --bg-hover: #253341;
+            --accent: #1d9bf0;
+            --accent-hover: #1a8cd8;
+            --accent-glow: rgba(29, 155, 240, 0.15);
+            --text-primary: #e7e9ea;
+            --text-secondary: #8b98a5;
+            --text-muted: #6e7a86;
+            --border: #2f3b47;
+            --success: #00c853;
+            --danger: #f4212e;
+            --danger-hover: #dc1d28;
+            --radius: 16px;
+            --radius-sm: 10px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* --- Layout --- */
+        .app {
+            max-width: 620px;
+            margin: 0 auto;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            min-height: 100vh;
+        }
+
+        /* --- Header --- */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(21, 32, 43, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .header h1 span {
+            background: linear-gradient(135deg, var(--accent), #7b61ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .connection-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .connection-pill.connected {
+            background: rgba(0, 200, 83, 0.12);
+            color: var(--success);
+        }
+
+        .connection-pill.disconnected {
+            background: rgba(244, 33, 46, 0.12);
+            color: var(--danger);
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .connected .connection-dot {
+            background: var(--success);
+        }
+
+        .disconnected .connection-dot {
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        /* --- Tabs --- */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 14px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border: none;
+            background: none;
+            position: relative;
+            transition: color 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 56px;
+            height: 4px;
+            border-radius: 4px;
+            background: var(--accent);
+        }
+
+        /* --- Search Bar --- */
+        .search-bar {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .search-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 9999px;
+            padding: 10px 16px;
+            transition: border-color 0.2s;
+        }
+
+        .search-input-wrap:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        .search-input-wrap svg {
+            flex-shrink: 0;
+            color: var(--text-muted);
+        }
+
+        .search-input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: 15px;
+            font-family: inherit;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* --- Tweet Card --- */
+        .tweet-card {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+            cursor: default;
+        }
+
+        .tweet-card:hover {
+            background: var(--bg-hover);
+        }
+
+        .tweet-top {
+            display: flex;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            flex-shrink: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .tweet-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tweet-author {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 4px;
+            flex-wrap: wrap;
+        }
+
+        .author-name {
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .author-verified {
+            color: var(--accent);
+            display: flex;
+        }
+
+        .author-handle,
+        .tweet-time {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        .tweet-text {
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            word-wrap: break-word;
+        }
+
+        .tweet-actions {
+            display: flex;
+            justify-content: space-between;
+            max-width: 400px;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border: none;
+            background: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-family: inherit;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .action-btn:hover {
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .action-btn.bookmarked {
+            color: var(--accent);
+        }
+
+        .action-btn.bookmarked svg {
+            fill: var(--accent);
+        }
+
+        .action-btn svg {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.2s;
+        }
+
+        .action-btn:active svg {
+            transform: scale(1.3);
+        }
+
+        /* --- Bookmark Item (in Bookmarks tab) --- */
+        .bookmark-item {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            transition: background 0.15s;
+        }
+
+        .bookmark-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .bookmark-content {
+            flex: 1;
+        }
+
+        .bookmark-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .delete-btn {
+            align-self: center;
+            padding: 8px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .delete-btn:hover {
+            background: rgba(244, 33, 46, 0.12);
+            color: var(--danger);
+        }
+
+        /* --- Empty State --- */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        /* --- Permission Modal --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            width: 90%;
+            max-width: 400px;
+            transform: scale(0.95);
+            transition: transform 0.25s;
+        }
+
+        .modal-overlay.visible .modal {
+            transform: scale(1);
+        }
+
+        .modal h2 {
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+
+        .modal p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .modal-caps {
+            background: var(--bg-primary);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            margin-bottom: 20px;
+        }
+
+        .modal-caps li {
+            list-style: none;
+            padding: 4px 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .modal-caps li::before {
+            content: '✓ ';
+            color: var(--success);
+            font-weight: 700;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 10px 22px;
+            border-radius: 9999px;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
+
+        /* --- Stats bar --- */
+        .stats-bar {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .stats-bar strong {
+            color: var(--text-secondary);
+        }
+
+        /* --- Toast --- */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+        }
+
+        .toast {
+            background: var(--accent);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 9999px;
+            font-size: 14px;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .toast.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
     </style>
 </head>
+
 <body>
 
-    <h1>UHP Protocol Demo</h1>
-    <div id="status" class="status disconnected">Checking for Local Agent...</div>
-
-    <div class="tweet-card">
-        <div class="tweet-header">
-            <div class="avatar"></div>
-            <div>
-                <span class="username">Elon Musk</span>
-                <span class="handle">@elonmusk</span>
+    <div class="app">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-top">
+                <h1>🔗 <span>UHP</span> Demo</h1>
+                <div id="connection" class="connection-pill disconnected">
+                    <div class="connection-dot"></div>
+                    <span id="connection-text">Connecting…</span>
+                </div>
             </div>
         </div>
-        <div class="content">
-            This tweet is stored entirely on your local machine via UHP. No cloud involved. 🚀
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="feed" onclick="switchTab('feed')">Feed</button>
+            <button class="tab" data-tab="bookmarks" onclick="switchTab('bookmarks')">Bookmarks</button>
         </div>
-        <div class="actions">
-            <button onclick="saveBookmark()">🔖 Bookmark Locally</button>
+
+        <!-- Search (bookmarks tab only) -->
+        <div class="search-bar" id="search-section" style="display: none;">
+            <div class="search-input-wrap">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                </svg>
+                <input class="search-input" id="search-input" type="text" placeholder="Search your bookmarks…"
+                    oninput="onSearch(this.value)">
+            </div>
+        </div>
+
+        <!-- Stats bar (bookmarks tab) -->
+        <div class="stats-bar" id="stats-bar" style="display: none;">
+            <span><strong id="bookmark-count">0</strong> bookmarks stored locally</span>
+            <span id="storage-info"></span>
+        </div>
+
+        <!-- Content -->
+        <div id="feed-panel"></div>
+        <div id="bookmarks-panel" style="display: none;"></div>
+    </div>
+
+    <!-- Permission Modal -->
+    <div class="modal-overlay" id="perm-modal">
+        <div class="modal">
+            <h2>🔐 Permission Request</h2>
+            <p><strong>demo.uhp-protocol.local</strong> wants to store data on your machine under the namespace
+                <strong>twitter.com</strong>.</p>
+            <ul class="modal-caps">
+                <li>Read & write bookmarks locally</li>
+                <li>Search your saved data</li>
+                <li>Delete bookmarks you choose</li>
+            </ul>
+            <p style="font-size: 12px; color: var(--text-muted);">Data never leaves your machine. No cloud sync in this
+                demo.</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="denyPermission()">Deny</button>
+                <button class="btn btn-primary" onclick="grantPermission()">Allow</button>
+            </div>
         </div>
     </div>
 
-    <h2>My Local Bookmarks</h2>
-    <div id="bookmarks-list">Loading...</div>
+    <!-- Toast -->
+    <div class="toast-container">
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <!-- UHP Client SDK -->
+    <script src="uhp-client.js"></script>
 
     <script>
-        const API_URL = 'http://localhost:21000/uhp/v1';
-        let isConnected = false;
+        // --- Config ---
+        const NAMESPACE = 'twitter.com';
+        const COLLECTION = 'bookmarks';
 
-        // 1. Handshake / Discovery
-        async function checkAgent() {
+        // --- Mock Tweets ---
+        const TWEETS = [
+            {
+                id: 'tweet-1',
+                author: 'Elon Musk',
+                handle: '@elonmusk',
+                avatar: '🚀',
+                verified: true,
+                text: 'This tweet is stored entirely on YOUR machine via the User-Hosted Protocol. No cloud involved. Your data, your rules. 🔐',
+                time: '2h',
+            },
+            {
+                id: 'tweet-2',
+                author: 'Linus Torvalds',
+                handle: '@Linus__Torvalds',
+                avatar: '🐧',
+                verified: true,
+                text: 'The best part about local-first software: it works offline, it\'s fast, and nobody can take your data away from you.',
+                time: '4h',
+            },
+            {
+                id: 'tweet-3',
+                author: 'Moxie Marlinspike',
+                handle: '@maboroshi',
+                avatar: '🔒',
+                verified: true,
+                text: 'Every time you store data on someone else\'s server, you\'re making a bet that they\'ll always act in your interest. UHP changes that equation.',
+                time: '6h',
+            },
+            {
+                id: 'tweet-4',
+                author: 'Sarah Drasner',
+                handle: '@sarah_edo',
+                avatar: '✨',
+                verified: true,
+                text: 'Just discovered UHP — it\'s like MCP but for regular apps instead of AI. Any app can offload storage to a local agent. The API is dead simple.',
+                time: '8h',
+            },
+            {
+                id: 'tweet-5',
+                author: 'DHH',
+                handle: '@dhh',
+                avatar: '💎',
+                verified: true,
+                text: 'Imagine if every SaaS app let you keep YOUR data on YOUR machine. No vendor lock-in, no data hostage situations. That\'s what UHP enables.',
+                time: '12h',
+            },
+        ];
+
+        // --- State ---
+        let uhp;
+        let bookmarkedIds = new Set();
+        let currentTab = 'feed';
+        let permissionGranted = false;
+
+        // --- SVG Icons ---
+        const ICONS = {
+            bookmark: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`,
+            bookmarkFill: `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`,
+            trash: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+            verified: `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z"/></svg>`,
+        };
+
+        // --- Init ---
+        async function init() {
+            uhp = new UHPClient();
+
+            uhp.on('connected', (data) => {
+                setConnectionStatus(true, data);
+            });
+
+            uhp.on('disconnected', () => {
+                setConnectionStatus(false);
+            });
+
+            renderFeed();
+            await connectToAgent();
+        }
+
+        async function connectToAgent() {
             try {
-                const res = await fetch(`${API_URL}/handshake`);
-                const data = await res.json();
-                if (data.protocol === 'uhp') {
-                    isConnected = true;
-                    document.getElementById('status').className = 'status connected';
-                    document.getElementById('status').innerText = '✅ UHP Agent Connected';
-                    loadBookmarks();
+                await uhp.connect();
+            } catch (err) {
+                setConnectionStatus(false);
+                // Retry every 3s
+                uhp.startAutoConnect();
+                return;
+            }
+
+            // Show permission modal on first connection
+            await checkAndRequestPermission();
+        }
+
+        async function checkAndRequestPermission() {
+            try {
+                const perms = await uhp.permissions.list();
+                const hasAccess = perms.permissions?.some(p => p.namespace === NAMESPACE);
+                if (hasAccess) {
+                    permissionGranted = true;
+                    await loadBookmarks();
+                } else {
+                    showPermissionModal();
                 }
-            } catch (e) {
-                document.getElementById('status').className = 'status disconnected';
-                document.getElementById('status').innerText = '❌ No Local Agent Found (Is it running?)';
-                console.error("UHP Connection Error:", e);
+            } catch {
+                showPermissionModal();
             }
         }
 
-        // 2. Save Data (Write)
-        async function saveBookmark() {
-            if (!isConnected) return alert("Please start the local UHP agent first!");
-            
-            const tweetData = {
-                id: 'tweet-' + Date.now(),
-                text: "This tweet is stored entirely on your local machine via UHP. No cloud involved. 🚀",
-                author: "Elon Musk",
-                handle: "@elonmusk",
-                savedAt: new Date().toISOString()
-            };
+        // --- Connection UI ---
+        function setConnectionStatus(connected, data) {
+            const pill = document.getElementById('connection');
+            const text = document.getElementById('connection-text');
+            pill.className = `connection-pill ${connected ? 'connected' : 'disconnected'}`;
+            text.textContent = connected
+                ? `Agent v${data?.agent?.version || '?'}`
+                : 'Disconnected';
+        }
 
+        // --- Permission Modal ---
+        function showPermissionModal() {
+            document.getElementById('perm-modal').classList.add('visible');
+        }
+
+        async function grantPermission() {
+            document.getElementById('perm-modal').classList.remove('visible');
             try {
-                const res = await fetch(`${API_URL}/storage/write`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        namespace: 'twitter.com',
-                        collection: 'bookmarks',
-                        data: tweetData
-                    })
-                });
-                
-                const result = await res.json();
-                if (result.success) {
-                    alert('Bookmark saved locally!');
-                    loadBookmarks();
-                }
-            } catch (e) {
-                console.error("Save failed:", e);
-                alert("Failed to save to local agent.");
+                await uhp.permissions.request(NAMESPACE);
+                permissionGranted = true;
+                showToast('✅ Permission granted — data stays local');
+                await loadBookmarks();
+            } catch (err) {
+                showToast('❌ Failed to grant permission');
             }
         }
 
-        // 3. Load Data (Read)
-        async function loadBookmarks() {
-            if (!isConnected) return;
+        function denyPermission() {
+            document.getElementById('perm-modal').classList.remove('visible');
+            showToast('Permission denied — bookmarks won\'t be saved');
+        }
+
+        // --- Tabs ---
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.tab === tab);
+            });
+            document.getElementById('feed-panel').style.display = tab === 'feed' ? 'block' : 'none';
+            document.getElementById('bookmarks-panel').style.display = tab === 'bookmarks' ? 'block' : 'none';
+            document.getElementById('search-section').style.display = tab === 'bookmarks' ? 'block' : 'none';
+            document.getElementById('stats-bar').style.display = tab === 'bookmarks' ? 'flex' : 'none';
+
+            if (tab === 'bookmarks') loadBookmarks();
+        }
+
+        // --- Feed Rendering ---
+        function renderFeed() {
+            const panel = document.getElementById('feed-panel');
+            panel.innerHTML = TWEETS.map(tweet => renderTweetCard(tweet)).join('');
+        }
+
+        function renderTweetCard(tweet) {
+            const isBookmarked = bookmarkedIds.has(tweet.id);
+            return `
+        <div class="tweet-card" id="card-${tweet.id}">
+            <div class="tweet-top">
+                <div class="avatar">${tweet.avatar}</div>
+                <div class="tweet-body">
+                    <div class="tweet-author">
+                        <span class="author-name">${tweet.author}</span>
+                        ${tweet.verified ? `<span class="author-verified">${ICONS.verified}</span>` : ''}
+                        <span class="author-handle">${tweet.handle}</span>
+                        <span class="tweet-time">· ${tweet.time}</span>
+                    </div>
+                    <div class="tweet-text">${tweet.text}</div>
+                    <div class="tweet-actions">
+                        <button class="action-btn ${isBookmarked ? 'bookmarked' : ''}"
+                                onclick="toggleBookmark('${tweet.id}')"
+                                title="${isBookmarked ? 'Remove bookmark' : 'Bookmark locally'}">
+                            ${isBookmarked ? ICONS.bookmarkFill : ICONS.bookmark}
+                            <span>${isBookmarked ? 'Saved' : 'Bookmark'}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        }
+
+        // --- Bookmark Operations ---
+        async function toggleBookmark(tweetId) {
+            if (!permissionGranted) {
+                showPermissionModal();
+                return;
+            }
+
+            const tweet = TWEETS.find(t => t.id === tweetId);
+            if (!tweet) return;
+
+            if (bookmarkedIds.has(tweetId)) {
+                // Remove
+                try {
+                    await uhp.store.delete(NAMESPACE, COLLECTION, tweetId);
+                    bookmarkedIds.delete(tweetId);
+                    showToast('Bookmark removed');
+                } catch (err) {
+                    showToast('❌ Failed to remove bookmark');
+                    return;
+                }
+            } else {
+                // Add
+                try {
+                    await uhp.store.add(NAMESPACE, COLLECTION, {
+                        text: tweet.text,
+                        author: tweet.author,
+                        handle: tweet.handle,
+                        avatar: tweet.avatar,
+                        savedAt: new Date().toISOString(),
+                    }, tweetId);
+                    bookmarkedIds.add(tweetId);
+                    showToast('🔖 Bookmarked locally');
+                } catch (err) {
+                    showToast('❌ Failed to save bookmark');
+                    return;
+                }
+            }
+
+            renderFeed();
+            if (currentTab === 'bookmarks') loadBookmarks();
+        }
+
+        async function loadBookmarks(searchTerm) {
+            if (!uhp?.connected) return;
 
             try {
-                const res = await fetch(`${API_URL}/storage/query`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        namespace: 'twitter.com',
-                        collection: 'bookmarks'
-                    })
-                });
+                let items;
+                if (searchTerm) {
+                    items = await uhp.store.search(NAMESPACE, COLLECTION, searchTerm);
+                } else {
+                    items = await uhp.store.query(NAMESPACE, COLLECTION, { sort: 'desc' });
+                }
 
-                const result = await res.json();
-                const list = document.getElementById('bookmarks-list');
-                list.innerHTML = '';
+                // Sync bookmarked IDs
+                bookmarkedIds = new Set(items.map(i => i.id));
+                renderFeed(); // Update bookmark icons
 
-                if (result.items.length === 0) {
-                    list.innerHTML = '<p>No bookmarks yet.</p>';
+                // Update stats
+                document.getElementById('bookmark-count').textContent = items.length;
+
+                // Render bookmarks list
+                const panel = document.getElementById('bookmarks-panel');
+                if (items.length === 0) {
+                    panel.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">🔖</div>
+                        <h3>${searchTerm ? 'No results found' : 'No bookmarks yet'}</h3>
+                        <p>${searchTerm ? 'Try a different search term' : 'Bookmark tweets from the Feed tab'}</p>
+                    </div>`;
                     return;
                 }
 
-                result.items.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'bookmark-item';
-                    div.innerHTML = `
-                        <strong>${item.data.author}</strong> <span style="color:#666">${item.data.handle}</span><br>
-                        ${item.data.text}
-                        <div class="bookmark-meta">Saved locally at: ${new Date(item.timestamp).toLocaleString()}</div>
-                    `;
-                    list.appendChild(div);
-                });
-            } catch (e) {
-                console.error("Load failed:", e);
+                panel.innerHTML = items.map(item => `
+                <div class="bookmark-item">
+                    <div class="avatar" style="width:40px;height:40px;font-size:16px;">${item.data.avatar || '📌'}</div>
+                    <div class="bookmark-content">
+                        <div class="tweet-author">
+                            <span class="author-name">${item.data.author}</span>
+                            <span class="author-handle">${item.data.handle}</span>
+                        </div>
+                        <div class="tweet-text" style="font-size:14px;">${item.data.text}</div>
+                        <div class="bookmark-meta">
+                            Saved locally · ${new Date(item.data.savedAt || item.created_at).toLocaleString()}
+                            · ID: ${item.id}
+                        </div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteBookmark('${item.id}')" title="Remove bookmark">
+                        ${ICONS.trash}
+                    </button>
+                </div>
+            `).join('');
+            } catch (err) {
+                console.error('Load bookmarks failed:', err);
             }
         }
 
-        // Start polling for agent
-        checkAgent();
-        setInterval(checkAgent, 5000); // Check every 5s if agent comes online
+        async function deleteBookmark(id) {
+            try {
+                await uhp.store.delete(NAMESPACE, COLLECTION, id);
+                bookmarkedIds.delete(id);
+                showToast('Bookmark deleted');
+                renderFeed();
+                loadBookmarks(document.getElementById('search-input').value);
+            } catch (err) {
+                showToast('❌ Failed to delete');
+            }
+        }
+
+        // --- Search ---
+        let searchDebounce;
+        function onSearch(term) {
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(() => loadBookmarks(term.trim()), 250);
+        }
+
+        // --- Toast ---
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('visible');
+            setTimeout(() => toast.classList.remove('visible'), 2500);
+        }
+
+        // --- Boot ---
+        init();
     </script>
 </body>
+
 </html>

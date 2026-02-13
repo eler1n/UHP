@@ -1,16 +1,23 @@
 {
   "name": "uhp-v1",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "User-Hosted Protocol — Standardized Local Backend for Any App",
+  "main": "agent/index.js",
   "scripts": {
+    "start": "node agent/index.js",
+    "demo": "npx -y serve demo -p 3210 --cors",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "uhp",
+    "local-first",
+    "protocol",
+    "privacy"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "body-parser": "^2.2.2",
+    "better-sqlite3": "^12.6.2",
     "cors": "^2.8.6",
     "express": "^5.2.1"
   }
